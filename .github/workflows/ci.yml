@@ -1,0 +1,60 @@
+name: ci
+
+# Formatting, clippy and tests on every push to a branch and every pull request.
+#
+# THIS REPOSITORY HAD NO CI. It is a vendored copy of `slab` with a local
+# patch (see MACULA_PATCH.md), and nothing checked that the patch still
+# compiles or that the crate's own 38 tests still pass.
+#
+# Modeled on macula-io/macula-bytes' ci.yml, which is this org's standard for a
+# vendored crate: `cargo fmt --all --check` as its own job, then a stable
+# toolchain run. macula-bytes' multi-OS, cargo-hack and cross-target matrix is
+# NOT copied: it drives helper scripts under `ci/` in that repository, and this
+# one has none. A single ubuntu job is the subset that can be true here today.
+#
+# `branches: ['**']` IS LOAD-BEARING, for the same reason as in the Erlang
+# repositories: a push event fires for tag refs too, and `**` matches every
+# branch while excluding tags.
+
+on:
+  push:
+    branches: ['**']
+    paths-ignore: ['**.md']
+  pull_request:
+    paths-ignore: ['**.md']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  RUSTFLAGS: -Dwarnings
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rustfmt:
+    name: rustfmt
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        run: rustup update stable
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+  check:
+    name: clippy + test (stable)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        run: rustup update stable
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Test
+        run: cargo test
